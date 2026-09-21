@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fluxqueue"
+version = "0.1.0"
+description = "Durable at-least-once message queue in pure Python (stdlib only)"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "fluxqueue contributors" }]
+keywords = ["queue", "message-queue", "sqs", "durability", "stdlib"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Topic :: System :: Distributed Computing",
+]
+
+[project.scripts]
+fluxqueue = "fluxqueue.cli:main"
+fluxqueue-server = "fluxqueue.cli:server_main"
+
+[tool.setuptools.packages.find]
+include = ["fluxqueue*"]
