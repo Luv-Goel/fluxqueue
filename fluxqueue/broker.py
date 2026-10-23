@@ -348,6 +348,40 @@ class Broker:
             now = time.time()
             return self._peek_locked(q, queue, max_messages, now)
 
+    def get_message(self, queue: str, message_id: str) -> Dict[str, Any]:
+        """Return the message with ``message_id`` without consuming it.
+
+        Searches pending messages first, then inflight messages. Returns the
+        message dict (same shape as :meth:`peek_messages`) or raises
+        :class:`ReceiptNotFoundError` when the message cannot be found.
+        Peeking semantics: no receipt is issued, no inflight entry is created,
+        and the receive count is not incremented.
+        """
+        _check_queue_name(queue)
+        if not isinstance(message_id, str) or not message_id:
+            raise InvalidArgumentError("message_id must be a non-empty string")
+        with self._lock:
+            q = self._require_locked(queue)
+            self._sweep_locked(time.time())
+            for msg in q.pending:
+                if msg.message_id == message_id:
+                    return self._message_dict(msg)
+            for entry in q.inflight.values():
+                if entry.message.message_id == message_id:
+                    return self._message_dict(entry.message)
+            raise ReceiptNotFoundError("message '%s' not found" % message_id)
+
+    def _message_dict(self, msg: Message) -> Dict[str, Any]:
+        return {
+            "message_id": msg.message_id,
+            "body": msg.body,
+            "attributes": dict(msg.attributes),
+            "sent_timestamp": msg.sent_timestamp,
+            "approximate_receive_count": msg.approximate_receive_count,
+            "available_at": msg.available_at,
+            "seq": msg.seq,
+        }
+
     def _peek_locked(self, q: _Queue, queue: str, n: int,
                      now: float) -> List[Dict[str, Any]]:
         out: List[Dict[str, Any]] = []

@@ -321,6 +321,46 @@ class TestPeek(BrokerCase):
         self.assertEqual(got[0]["body"], "later")
 
 
+class TestGetMessage(BrokerCase):
+    def test_get_message_pending(self):
+        self.b.create_queue("q")
+        res = self.b.send_message("q", "hello", attributes={"k": "v"})
+        mid = res["message_id"]
+        got = self.b.get_message("q", mid)
+        self.assertEqual(got["message_id"], mid)
+        self.assertEqual(got["body"], "hello")
+        self.assertEqual(got["attributes"], {"k": "v"})
+        self.assertEqual(got["approximate_receive_count"], 0)
+
+    def test_get_message_inflight(self):
+        self.b.create_queue("q", {"visibility_timeout": 30})
+        res = self.b.send_message("q", "inflight-check")
+        mid = res["message_id"]
+        self.b.receive_messages("q", max_messages=1)
+        got = self.b.get_message("q", mid)
+        self.assertEqual(got["message_id"], mid)
+        self.assertEqual(got["body"], "inflight-check")
+        # peeking must not consume it: still retrievable via get_message
+        again = self.b.get_message("q", mid)
+        self.assertEqual(again["message_id"], mid)
+
+    def test_get_message_unknown_id_raises(self):
+        self.b.create_queue("q")
+        with self.assertRaises(ReceiptNotFoundError):
+            self.b.get_message("q", "does-not-exist")
+
+    def test_get_message_bad_id_raises(self):
+        self.b.create_queue("q")
+        with self.assertRaises(InvalidArgumentError):
+            self.b.get_message("q", "")
+        with self.assertRaises(InvalidArgumentError):
+            self.b.get_message("q", 123)
+
+    def test_get_message_unknown_queue_raises(self):
+        with self.assertRaises(QueueNotFoundError):
+            self.b.get_message("nope", "x")
+
+
 class TestPurgeStats(BrokerCase):
     def test_purge(self):
         self.b.create_queue("q")
