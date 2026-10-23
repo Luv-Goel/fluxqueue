@@ -331,6 +331,42 @@ class Broker:
             self._log.append_many(log_recs)
         return out
 
+    # -- peek -----------------------------------------------------------
+    def peek_messages(self, queue: str, max_messages: int = 1) -> List[Dict[str, Any]]:
+        """Return up to ``max_messages`` visible messages without hiding them.
+
+        Unlike :meth:`receive_messages`, peeking does not create an inflight
+        entry, does not issue a receipt handle, and does not increment the
+        receive count. The messages remain visible to the next receiver.
+        """
+        _check_queue_name(queue)
+        if isinstance(max_messages, bool) or not isinstance(max_messages, int):
+            raise InvalidArgumentError("max_messages must be an int")
+        max_messages = max(1, min(MAX_RECEIVE_BATCH, max_messages))
+        with self._lock:
+            q = self._require_locked(queue)
+            now = time.time()
+            return self._peek_locked(q, queue, max_messages, now)
+
+    def _peek_locked(self, q: _Queue, queue: str, n: int,
+                     now: float) -> List[Dict[str, Any]]:
+        out: List[Dict[str, Any]] = []
+        for msg in q.pending:
+            if len(out) >= n:
+                break
+            if msg.available_at > now:
+                continue
+            out.append({
+                "message_id": msg.message_id,
+                "body": msg.body,
+                "attributes": dict(msg.attributes),
+                "sent_timestamp": msg.sent_timestamp,
+                "approximate_receive_count": msg.approximate_receive_count,
+                "available_at": msg.available_at,
+                "seq": msg.seq,
+            })
+        return out
+
     # -- ack / visibility -----------------------------------------------
     def delete_message(self, queue: str, receipt_handle: str) -> None:
         _check_queue_name(queue)

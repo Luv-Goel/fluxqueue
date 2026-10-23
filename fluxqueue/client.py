@@ -100,6 +100,13 @@ class QueueClient:
             "DELETE", "/queues/" + urllib.parse.quote(queue, safe="") +
             "/messages/" + urllib.parse.quote(receipt_handle, safe=""))
 
+    def peek_messages(self, queue: str, max_messages: int = 1,
+                      visibility_timeout: Optional[float] = None) -> List[Dict[str, Any]]:
+        q: Dict[str, Any] = {"max": max_messages}
+        return self._request(
+            "GET", "/queues/" + urllib.parse.quote(queue, safe="") +
+            "/peek", query=q)["messages"]
+
     def change_visibility(self, queue: str, receipt_handle: str,
                           visibility_timeout: float) -> Dict[str, Any]:
         return self._request(

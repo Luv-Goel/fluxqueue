@@ -269,6 +269,58 @@ class TestDlq(BrokerCase):
             self.b.redrive_dlq("plain")
 
 
+class TestPeek(BrokerCase):
+    def test_peek_returns_messages_without_receipt(self):
+        self.b.create_queue("q")
+        for i in range(3):
+            self.b.send_message("q", "m%d" % i)
+        got = self.b.peek_messages("q", max_messages=3)
+        self.assertEqual(len(got), 3)
+        for m in got:
+            self.assertNotIn("receipt_handle", m)
+            self.assertNotIn("visibility_deadline", m)
+            self.assertIn("message_id", m)
+            self.assertIn("body", m)
+        self.assertEqual([m["body"] for m in got], ["m0", "m1", "m2"])
+
+    def test_peek_does_not_hide_messages(self):
+        self.b.create_queue("q")
+        self.b.send_message("q", "a")
+        self.b.peek_messages("q")
+        self.b.peek_messages("q")
+        received = self.b.receive_messages("q")
+        self.assertEqual(len(received), 1)
+        self.assertEqual(received[0]["body"], "a")
+
+    def test_peek_does_not_increment_receive_count(self):
+        self.b.create_queue("q")
+        self.b.send_message("q", "a")
+        self.b.peek_messages("q")
+        self.b.peek_messages("q")
+        got = self.b.receive_messages("q")
+        self.assertEqual(got[0]["approximate_receive_count"], 1)
+
+    def test_peek_respects_max_messages(self):
+        self.b.create_queue("q")
+        for i in range(5):
+            self.b.send_message("q", "m%d" % i)
+        got = self.b.peek_messages("q", max_messages=2)
+        self.assertEqual(len(got), 2)
+
+    def test_peek_unknown_queue_raises(self):
+        with self.assertRaises(QueueNotFoundError):
+            self.b.peek_messages("nope")
+
+    def test_peek_skips_delayed_messages(self):
+        self.b.create_queue("q")
+        self.b.send_message("q", "later", delay_seconds=0.3)
+        self.assertEqual(self.b.peek_messages("q"), [])
+        time.sleep(0.4)
+        got = self.b.peek_messages("q")
+        self.assertEqual(len(got), 1)
+        self.assertEqual(got[0]["body"], "later")
+
+
 class TestPurgeStats(BrokerCase):
     def test_purge(self):
         self.b.create_queue("q")

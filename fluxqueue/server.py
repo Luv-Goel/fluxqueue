@@ -139,6 +139,15 @@ class _Handler(BaseHTTPRequestHandler):
                     visibility_timeout=None if vis_raw is None else float(vis_raw))
                 return 200, {"messages": msgs}
 
+        if len(parts) == 3 and parts[0] == "queues" and parts[2] == "peek" \
+                and method == "GET":
+            name = urllib.parse.unquote(parts[1])
+            def q1(key, default):
+                return query.get(key, [default])[0]
+            msgs = broker.peek_messages(
+                name, max_messages=int(q1("max", "1")))
+            return 200, {"messages": msgs}
+
         if len(parts) == 4 and parts[0] == "queues" and parts[2] == "messages":
             name = urllib.parse.unquote(parts[1])
             receipt = urllib.parse.unquote(parts[3])
